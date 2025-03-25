@@ -1,6 +1,7 @@
 import os
 import numpy as np
 from typing import Optional
+import logging
 from numpy.lib.function_base import disp
 import torch
 import decord
@@ -12,6 +13,9 @@ from decord import VideoReader, cpu
 from torch.utils.data import Dataset
 import video_transforms as video_transforms 
 import volume_transforms as volume_transforms
+
+
+logger = logging.getLogger(__name__)
 
 
 class VideoClsDataset(Dataset):
@@ -537,9 +541,11 @@ class VideoDistillation(torch.utils.data.Dataset):
         if not os.path.exists(setting):
             raise(RuntimeError("Setting file %s doesn't exist. Check opt.train-list and opt.val-list. " % (setting)))
         clips = []
+        total_num_vids = 0
         with open(setting) as split_f:
             data = split_f.readlines()
             for line in data:
+                total_num_vids += 1
                 line_info = line.split(self.csv_sep)
                 # line format: video_path, video_duration, video_label
                 if len(line_info) < 2:
@@ -554,6 +560,8 @@ class VideoDistillation(torch.utils.data.Dataset):
                     clip_path = os.path.join(directory, clip_path)
                 item = (clip_path, target, alarm_frame_idx)
                 clips.append(item)
+        logger.info('Number of video clips included in dataset: {:d}'.format(len(clips)))
+        logger.info("All video clips in annotations CSV: {:d}".format(total_num_vids))
         return clips
 
     def _sample_train_indices(self, num_frames):
