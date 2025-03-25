@@ -154,6 +154,18 @@ def get_args():
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem',
                         help='')
     parser.set_defaults(pin_mem=True)
+    parser.add_argument("--csv_sep", default=" ", type=str, help="Annotations CSV file separator")
+    parser.add_argument(
+        "--alarm_frame_offset", 
+        default=900, 
+        type=int, 
+        help=(
+            "The number of frames preceding the first alarm frame to exclude from the input to MVD. For example,"
+            "if the first alarm occurs at frame index 1000 and alarm_frame_offset is 900, then the input to MVD will"
+            "include the frames indices in the range [0, 100). The default 900 corresponds to 30 seconds of CAML"
+            "video."
+        )
+    )
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,

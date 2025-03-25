@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from typing import Optional
 from numpy.lib.function_base import disp
 import torch
 import decord
@@ -425,6 +426,13 @@ class VideoDistillation(torch.utils.data.Dataset):
         Different types of data augmentation auto. Supports v1, v2, v3 and v4.
     lazy_init : bool, default False.
         If set to True, build a dataset instance without loading any dataset.
+    alarm_frame_offset: int, default 900.
+        The number of frames preceding the first alarm frame to exclude from the input to MVD. For example,
+        if the first alarm frame is at index 1000 and alarm_frame_offset is 900, then the input to MVD will
+        include the frames indices in the range [0, 100). The default 900 corresponds to 30 seconds of CAML
+        video.
+    csv_sep: str, default ' '.
+        The separator used in the annotations file.
     """
     def __init__(self,
                  root,
@@ -445,6 +453,8 @@ class VideoDistillation(torch.utils.data.Dataset):
                  use_decord=False,
                  lazy_init=False,
                  num_sample=1,
+                 alarm_frame_offset: int = 900,
+                 csv_sep: str = " "
                  ):
 
         super(VideoDistillation, self).__init__()
@@ -458,6 +468,8 @@ class VideoDistillation(torch.utils.data.Dataset):
         self.num_crop = num_crop
         self.new_length = new_length
         self.new_step = new_step
+        # Calculate number of frames to skip as the target number of frames per 
+        #  sampled clip multiplied by the frame step.
         self.skip_length = self.new_length * self.new_step
         self.temporal_jitter = temporal_jitter
         self.name_pattern = name_pattern
@@ -467,16 +479,18 @@ class VideoDistillation(torch.utils.data.Dataset):
         self.transform = transform
         self.lazy_init = lazy_init
         self.num_sample = num_sample
+        self.alarm_frame_offset = alarm_frame_offset
+        self.csv_sep = csv_sep
 
         if not self.lazy_init:
-            self.clips = self._make_dataset(root, setting)
+            self.clips = self._make_dataset(root, setting, alarm_frame_offset)
             if len(self.clips) == 0:
                 raise(RuntimeError("Found 0 video clips in subfolders of: " + root + "\n"
                                    "Check your data directory (opt.data-dir)."))
 
     def __getitem__(self, index):
 
-        directory, target = self.clips[index]
+        directory, target, alarm_frame_idx = self.clips[index]
         if self.video_loader:
             if '.' in directory.split('/')[-1]:
                 # data in the "setting" file already have extension, e.g., demo.mp4
@@ -487,7 +501,11 @@ class VideoDistillation(torch.utils.data.Dataset):
                 video_name = '{}.{}'.format(directory, self.video_ext)
 
             decord_vr = decord.VideoReader(video_name, num_threads=1)
-            duration = len(decord_vr)
+
+            # For CAML, the inputs to MVD are frames up to the index where the first alarm appears 
+            #  minus an offset.
+            # duration = len(decord_vr)
+            duration = alarm_frame_idx - self.alarm_frame_offset
 
         segment_indices, skip_offsets = self._sample_train_indices(duration)
 
@@ -515,39 +533,59 @@ class VideoDistillation(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.clips)
 
-    def _make_dataset(self, directory, setting):
+    def _make_dataset(self, directory, setting, alarm_frame_offset: Optional[int] = None):
         if not os.path.exists(setting):
             raise(RuntimeError("Setting file %s doesn't exist. Check opt.train-list and opt.val-list. " % (setting)))
         clips = []
         with open(setting) as split_f:
             data = split_f.readlines()
             for line in data:
-                line_info = line.split(' ')
+                line_info = line.split(self.csv_sep)
                 # line format: video_path, video_duration, video_label
                 if len(line_info) < 2:
                     raise(RuntimeError('Video input format is not correct, missing one or more element. %s' % line))
                 clip_path = os.path.join(line_info[0])
                 target = int(line_info[1])
+                alarm_frame_idx = int(line_info[2])
+                if alarm_frame_offset is not None and alarm_frame_idx - alarm_frame_offset <= 0:
+                    # This video has no frames eligible for input to MVD.
+                    continue
                 if directory is not None:
                     clip_path = os.path.join(directory, clip_path)
-                item = (clip_path, target)
+                item = (clip_path, target, alarm_frame_idx)
                 clips.append(item)
         return clips
 
     def _sample_train_indices(self, num_frames):
+        # Number of frames per segment, excluding the skip length. E.g. if we 
+        #  sample every 3 frames and want 10 total frames, then we skip 30 frames.
+        #  If we have num_frames==40 to sample from, then we only sample 11 
+        #  frames. If we want 3 segments, then we can have 3 frames per segment.
         average_duration = (num_frames - self.skip_length + 1) // self.num_segments
         if average_duration > 0:
+            # E.g. if self.num_segments==3 and average_duration==3, then 
+            #  offsets==[0,3,6] in order to be able to sample 3 segments of 
+            #  length 3.
             offsets = np.multiply(list(range(self.num_segments)),
                                   average_duration)
+            # Make the offsets random within the average duration.
             offsets = offsets + np.random.randint(average_duration,
                                                   size=self.num_segments)
+            
         elif num_frames > max(self.num_segments, self.skip_length):
+            # If the total number of frames is greater than the number of segments
+            #  and the number of frames to skip, we can sample num_segments 
+            #  overlapping segments.
             offsets = np.sort(np.random.randint(
                 num_frames - self.skip_length + 1,
                 size=self.num_segments))
         else:
+            # We can't even meet the skip_length requirement, so all segments must
+            #  start at the 0th frame.
             offsets = np.zeros((self.num_segments,))
 
+        # NOTE: self.skip_length // self.new_step = about the number of frames
+        #  to sample in each segment.
         if self.temporal_jitter:
             skip_offsets = np.random.randint(
                 self.new_step, size=self.skip_length // self.new_step)

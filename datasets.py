@@ -63,6 +63,8 @@ def build_distillation_dataset(args, num_frames=None):
         lazy_init=False,
         num_sample=args.num_sample,
         num_segments=args.num_sample,
+        alarm_frame_offset=args.alarm_frame_offset,
+        csv_sep=args.csv_sep,
     )
     print("Data Aug = %s" % str(transform))
     return dataset
