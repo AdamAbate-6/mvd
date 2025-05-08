@@ -1,24 +1,25 @@
 import argparse
 import datetime
-import numpy as np
-import time
-import torch
-import torch.backends.cudnn as cudnn
 import json
 import os
+import time
+from collections import OrderedDict
 from functools import partial
 from pathlib import Path
-from collections import OrderedDict
-from timm.models import create_model
-from optim_factory import create_optimizer
-from datasets import build_distillation_dataset
-from engine_for_pretraining import train_one_epoch
-from utils import NativeScalerWithGradNormCount as NativeScaler
-import utils
-from utils import multiple_pretrain_samples_collate
+
 import modeling_student
 import modeling_teacher
 import modeling_video_teacher
+import numpy as np
+import torch
+import torch.backends.cudnn as cudnn
+import utils
+from datasets import build_distillation_dataset
+from engine_for_pretraining import train_one_epoch
+from optim_factory import create_optimizer
+from timm.models import create_model
+from utils import NativeScalerWithGradNormCount as NativeScaler
+from utils import multiple_pretrain_samples_collate
 
 
 def get_args():
@@ -157,13 +158,13 @@ def get_args():
     parser.add_argument("--csv_sep", default=" ", type=str, help="Annotations CSV file separator")
     parser.add_argument(
         "--alarm_frame_offset", 
-        default=900, 
-        type=int, 
+        default=900,
+        type=int,
         help=(
             "The number of frames preceding the first alarm frame to exclude from the input to MVD. For example,"
             "if the first alarm occurs at frame index 1000 and alarm_frame_offset is 900, then the input to MVD will"
             "include the frames indices in the range [0, 100). The default 900 corresponds to 30 seconds of CAML"
-            "video."
+            "video, which has a frame rate of 30 FPS."
         )
     )
 
@@ -365,7 +366,8 @@ def main(args):
     print("LR = %.8f" % args.lr)
     print("Batch size = %d" % total_batch_size)
     print("Update frequent = %d" % args.update_freq)
-    print("Number of training steps = %d" % num_training_steps_per_epoch)
+    print("Number of training examples in training dataset = %d" % len(dataset_train))
+    print("Number of training steps per epoch = %d" % num_training_steps_per_epoch)
     print("Number of training examples per epoch = %d" % (total_batch_size * num_training_steps_per_epoch))
 
     if args.distributed:

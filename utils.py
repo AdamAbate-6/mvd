@@ -269,10 +269,25 @@ def init_distributed_mode(args):
         os.environ['LOCAL_RANK'] = str(args.gpu)
         os.environ['RANK'] = str(args.rank)
         os.environ['WORLD_SIZE'] = str(args.world_size)
+
     elif 'SLURM_PROCID' in os.environ:
-        args.rank = int(os.environ['SLURM_PROCID'])
-        args.gpu = int(os.environ['SLURM_LOCALID'])
-        args.world_size = int(os.environ['SLURM_NTASKS'])
+        # NOTE 2025-05-02: We have a SLURM job with one task per node that launches torch.distributed
+        #  with --nproc_per_node=${GPUS}. If GPUS=2, torch.distributed will spawn 2 processes per node.
+        #  But SLURM_LOCALID=0 for both processes because they are on the same task. Instead,
+        #  simply use args.local_rank, which torch.distributed passes for us.
+        args.gpu = args.local_rank
+        # args.gpu = int(os.environ['SLURM_LOCALID'])
+        # NOTE 2025-05-02: Because there is one task per node, SLURM_PROCID will be the same
+        #  for all processes (one per GPU) that torch.distributed launces on a node. So to get the
+        #  starting global rank for a node, multiply its SLURM_PROCID by the number of GPUs per node.
+        #  Then to get the global rank of this process, add the local rank.
+        args.rank = int(os.environ['SLURM_PROCID']) * int(os.environ['SLURM_GPUS_PER_NODE']) + args.local_rank
+        # args.rank = int(os.environ['SLURM_PROCID'])
+        # NOTE 2025-05-02: I am not confident that SLURM_NTASKS is being set by my SLURM script since
+        #  I instead set --ntasks-per-node. But I calculate WORLD_SIZE and set it in the sbatch script,
+        #  so we can use that.
+        args.world_size = int(os.environ['WORLD_SIZE'])
+        # args.world_size = int(os.environ['SLURM_NTASKS'])
         os.environ['RANK'] = str(args.rank)
         os.environ['LOCAL_RANK'] = str(args.gpu)
         os.environ['WORLD_SIZE'] = str(args.world_size)
@@ -295,8 +310,8 @@ def init_distributed_mode(args):
 
     torch.cuda.set_device(args.gpu)
     args.dist_backend = 'nccl'
-    print('| distributed init (rank {}): {}, gpu {}'.format(
-        args.rank, args.dist_url, args.gpu), flush=True)
+    print('| distributed init (rank {} out of {}): {}, gpu {}'.format(
+        args.rank, args.world_size, args.dist_url, args.gpu), flush=True)
     torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                          world_size=args.world_size, rank=args.rank, timeout=datetime.timedelta(seconds=28800))
     torch.distributed.barrier()
@@ -412,7 +427,9 @@ def cosine_scheduler(base_value, final_value, epochs, niter_per_ep, warmup_epoch
 
     schedule = np.concatenate((warmup_schedule, schedule))
 
-    assert len(schedule) == epochs * niter_per_ep
+    assert len(schedule) == epochs * niter_per_ep, (
+        f"Got {len(schedule)=}, but {epochs*niter_per_ep=} where {epochs=}, {niter_per_ep=}"
+    )
     return schedule
 
 
