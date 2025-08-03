@@ -15,15 +15,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.data.sampler import Sampler
-from torch._six import inf
-import random
-
-from tensorboardX import SummaryWriter
 
 TORCH_MAJOR = int(torch.__version__.split(".")[0])
 TORCH_MINOR = int(torch.__version__.split(".")[1])
 
-if TORCH_MAJOR >= 1 and TORCH_MINOR >= 8:
+if TORCH_MAJOR >= 1 or (TORCH_MAJOR == 1 and TORCH_MINOR >= 8):
     _int_classes = int
 else:
     from torch._six import int_classes as _int_classes
@@ -275,13 +271,13 @@ def init_distributed_mode(args):
         #  with --nproc_per_node=${GPUS}. If GPUS=2, torch.distributed will spawn 2 processes per node.
         #  But SLURM_LOCALID=0 for both processes because they are on the same task. Instead,
         #  simply use args.local_rank, which torch.distributed passes for us.
-        args.gpu = args.local_rank
+        args.gpu = args.local_rank if hasattr(args, "local_rank") else os.environ["LOCAL_RANK"]
         # args.gpu = int(os.environ['SLURM_LOCALID'])
         # NOTE 2025-05-02: Because there is one task per node, SLURM_PROCID will be the same
         #  for all processes (one per GPU) that torch.distributed launces on a node. So to get the
         #  starting global rank for a node, multiply its SLURM_PROCID by the number of GPUs per node.
         #  Then to get the global rank of this process, add the local rank.
-        args.rank = int(os.environ['SLURM_PROCID']) * int(os.environ['SLURM_GPUS_PER_NODE']) + args.local_rank
+        args.rank = int(os.environ['SLURM_PROCID']) * int(os.environ['SLURM_GPUS_PER_NODE']) + args.gpu
         # args.rank = int(os.environ['SLURM_PROCID'])
         # NOTE 2025-05-02: I am not confident that SLURM_NTASKS is being set by my SLURM script since
         #  I instead set --ntasks-per-node. But I calculate WORLD_SIZE and set it in the sbatch script,
@@ -404,7 +400,7 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     if len(parameters) == 0:
         return torch.tensor(0.)
     device = parameters[0].grad.device
-    if norm_type == inf:
+    if norm_type == math.inf:
         total_norm = max(p.grad.detach().abs().max().to(device) for p in parameters)
     else:
         total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]), norm_type)

@@ -328,7 +328,9 @@ class PretrainMaskedVideoStudent(nn.Module):
 
 
 @register_model
-def pretrain_masked_video_student_small_patch16_224(pretrained=False, **kwargs):
+def pretrain_masked_video_student_small_patch16_224(
+    pretrained=False, pretrained_cfg=None, pretrained_cfg_overlay=None, cache_dir=None, **kwargs
+):
     model = PretrainMaskedVideoStudent(
         img_size=224,
         patch_size=16,
@@ -338,18 +340,19 @@ def pretrain_masked_video_student_small_patch16_224(pretrained=False, **kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs)
+        **kwargs
+    )
     model.default_cfg = _cfg()
     if pretrained:
-        checkpoint = torch.load(
-            kwargs["init_ckpt"], map_location="cpu"
-        )
+        checkpoint = torch.load(kwargs["init_ckpt"], map_location="cpu")
         model.load_state_dict(checkpoint["model"])
     return model
 
 
 @register_model
-def pretrain_masked_video_student_base_patch16_224(pretrained=False, **kwargs):
+def pretrain_masked_video_student_base_patch16_224(
+    pretrained=False, pretrained_cfg=None, pretrained_cfg_overlay=None, cache_dir=None, **kwargs
+):
     model = PretrainMaskedVideoStudent(
         img_size=224,
         patch_size=16,
@@ -359,18 +362,19 @@ def pretrain_masked_video_student_base_patch16_224(pretrained=False, **kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs)
+        **kwargs
+    )
     model.default_cfg = _cfg()
     if pretrained:
-        checkpoint = torch.load(
-            kwargs["init_ckpt"], map_location="cpu"
-        )
+        checkpoint = torch.load(kwargs["init_ckpt"], map_location="cpu")
         model.load_state_dict(checkpoint["model"])
     return model
 
 
 @register_model
-def pretrain_masked_video_student_large_patch16_224(pretrained=False, **kwargs):
+def pretrain_masked_video_student_large_patch16_224(
+    pretrained=False, pretrained_cfg=None, pretrained_cfg_overlay=None, cache_dir=None, **kwargs
+):
     model = PretrainMaskedVideoStudent(
         img_size=224,
         patch_size=16,
@@ -380,18 +384,19 @@ def pretrain_masked_video_student_large_patch16_224(pretrained=False, **kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs)
+        **kwargs
+    )
     model.default_cfg = _cfg()
     if pretrained:
-        checkpoint = torch.load(
-            kwargs["init_ckpt"], map_location="cpu"
-        )
+        checkpoint = torch.load(kwargs["init_ckpt"], map_location="cpu")
         model.load_state_dict(checkpoint["model"])
     return model
 
 
 @register_model
-def pretrain_masked_video_student_huge_patch16_224(pretrained=False, **kwargs):
+def pretrain_masked_video_student_huge_patch16_224(
+    pretrained=False, pretrained_cfg=None, pretrained_cfg_overlay=None, cache_dir=None, **kwargs
+):
     model = PretrainMaskedVideoStudent(
         img_size=224,
         patch_size=16,
@@ -401,11 +406,10 @@ def pretrain_masked_video_student_huge_patch16_224(pretrained=False, **kwargs):
         mlp_ratio=4,
         qkv_bias=True,
         norm_layer=partial(nn.LayerNorm, eps=1e-6),
-        **kwargs)
+        **kwargs
+    )
     model.default_cfg = _cfg()
     if pretrained:
-        checkpoint = torch.load(
-            kwargs["init_ckpt"], map_location="cpu"
-        )
+        checkpoint = torch.load(kwargs["init_ckpt"], map_location="cpu")
         model.load_state_dict(checkpoint["model"])
     return model

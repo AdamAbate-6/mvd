@@ -156,7 +156,7 @@ class PretrainVideoTransformerTeacher(nn.Module):
 
 
 @register_model
-def pretrain_videomae_teacher_base_patch16_224(pretrained=False, **kwargs):
+def pretrain_videomae_teacher_base_patch16_224(pretrained=False, pretrained_cfg=None, pretrained_cfg_overlay=None, cache_dir=None, **kwargs):
     model = PretrainVideoTransformerTeacher(
         patch_size=16,
         encoder_embed_dim=768,
@@ -177,7 +177,7 @@ def pretrain_videomae_teacher_base_patch16_224(pretrained=False, **kwargs):
 
 
 @register_model
-def pretrain_videomae_teacher_large_patch16_224(pretrained=False, **kwargs):
+def pretrain_videomae_teacher_large_patch16_224(pretrained=False, pretrained_cfg=None, pretrained_cfg_overlay=None, cache_dir=None, **kwargs):
     model = PretrainVideoTransformerTeacher(
         patch_size=16,
         encoder_embed_dim=1024,
@@ -198,7 +198,7 @@ def pretrain_videomae_teacher_large_patch16_224(pretrained=False, **kwargs):
 
 
 @register_model
-def pretrain_videomae_teacher_huge_patch16_224(pretrained=False, **kwargs):
+def pretrain_videomae_teacher_huge_patch16_224(pretrained=False, pretrained_cfg=None, pretrained_cfg_overlay=None, cache_dir=None, **kwargs):
     model = PretrainVideoTransformerTeacher(
         patch_size=16,
         encoder_embed_dim=1280,

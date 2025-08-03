@@ -1,19 +1,19 @@
-import os
-import numpy as np
-from typing import Optional
 import logging
-from numpy.lib.function_base import disp
-import torch
-import decord
-from PIL import Image
-from torchvision import transforms
-from random_erasing import RandomErasing
+import os
 import warnings
-from decord import VideoReader, cpu
-from torch.utils.data import Dataset
-import video_transforms as video_transforms 
-import volume_transforms as volume_transforms
+from typing import Optional
 
+import decord
+import numpy as np
+import torch
+import video_transforms as video_transforms
+import volume_transforms as volume_transforms
+from decord import VideoReader, cpu
+from numpy.lib.function_base import disp
+from PIL import Image
+from random_erasing import RandomErasing
+from torch.utils.data import Dataset
+from torchvision import transforms
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class VideoClsDataset(Dataset):
             raise ImportError("Unable to import `decord` which is required to read videos.")
 
         import pandas as pd
-        cleaned = pd.read_csv(self.anno_path, header=None, delimiter=' ')
+        cleaned = pd.read_csv(self.anno_path, header=None, delimiter=' ' if self.args.csv_sep is None else self.args.csv_sep)
         self.dataset_samples = list(cleaned.values[:, 0])
         if self.data_path is not None:
             self.dataset_samples = [os.path.join(self.data_path, p) for p in self.dataset_samples]
@@ -488,6 +488,7 @@ class VideoDistillation(torch.utils.data.Dataset):
 
         if not self.lazy_init:
             self.clips = self._make_dataset(root, setting, alarm_frame_offset)
+            logger.info(f"Number of videos in dataset is {len(self.clips)}")
             if len(self.clips) == 0:
                 raise(RuntimeError("Found 0 video clips in subfolders of: " + root + "\n"
                                    "Check your data directory (opt.data-dir)."))
