@@ -189,6 +189,7 @@ def get_args():
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no_pin_mem', action='store_false', dest='pin_mem')
     parser.set_defaults(pin_mem=True)
+    parser.add_argument("--csv_sep", default=" ", type=str, help="Annotations CSV file separator")
 
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
