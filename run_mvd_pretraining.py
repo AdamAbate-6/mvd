@@ -359,7 +359,7 @@ def main(args):
     print('number of params: {} M'.format(n_parameters / 1e6))
 
     total_batch_size = args.batch_size * args.num_sample * args.update_freq * utils.get_world_size()
-    num_training_steps_per_epoch = len(dataset_train) // int(total_batch_size / args.num_sample)
+    num_training_steps_per_epoch = len(dataset_train) // int(total_batch_size / args.num_sample) + 1
     args.lr = args.lr * total_batch_size / 256
     args.min_lr = args.min_lr * total_batch_size / 256
     args.warmup_lr = args.warmup_lr * total_batch_size / 256
