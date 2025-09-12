@@ -1,6 +1,7 @@
 import io
 import os
 import math
+import random
 import time
 import json
 from collections import defaultdict, deque
@@ -15,6 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 from torch.utils.data.sampler import Sampler
+from tensorboardX import SummaryWriter
 
 TORCH_MAJOR = int(torch.__version__.split(".")[0])
 TORCH_MINOR = int(torch.__version__.split(".")[1])

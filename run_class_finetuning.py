@@ -1,27 +1,35 @@
 import argparse
 import datetime
-import numpy as np
-import time
-import torch
-import torch.backends.cudnn as cudnn
 import json
 import os
+import time
+from collections import OrderedDict
 from functools import partial
 from pathlib import Path
-from collections import OrderedDict
 
-from timm.models import create_model
-from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
-from timm.utils import ModelEma
-from timm.data import Mixup
-from optim_factory import create_optimizer, get_parameter_groups, LayerDecayValueAssigner
-
+import modeling_finetune
+import numpy as np
+import torch
+import torch.backends.cudnn as cudnn
+import utils
 from datasets import build_dataset
-from engine_for_finetuning import train_one_epoch, validation_one_epoch, final_test, merge
+from engine_for_finetuning import (
+    final_test,
+    merge,
+    train_one_epoch,
+    validation_one_epoch,
+)
+from optim_factory import (
+    LayerDecayValueAssigner,
+    create_optimizer,
+    get_parameter_groups,
+)
+from timm.data import Mixup
+from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
+from timm.models import create_model
+from timm.utils import ModelEma
 from utils import NativeScalerWithGradNormCount as NativeScaler
 from utils import multiple_samples_collate
-import utils
-import modeling_finetune
 
 
 def get_args():
@@ -195,6 +203,7 @@ def get_args():
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--local_rank', default=-1, type=int)
+    parser.add_argument('--local-rank', default=-1, type=int)
     parser.add_argument('--dist_on_itp', action='store_true')
     parser.add_argument('--dist_url', default='env://',
                         help='url used to set up distributed training')
