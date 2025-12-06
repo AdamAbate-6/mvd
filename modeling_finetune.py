@@ -309,6 +309,7 @@ class VisionTransformer(nn.Module):
                  use_checkpoint=False,
                  use_mean_pooling=True,
                  use_cls_token=False,
+                 **kwargs,
                  ):
         super().__init__()
         self.num_classes = num_classes
