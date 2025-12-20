@@ -1,15 +1,16 @@
-import os
-import numpy as np
 import math
+import os
 import sys
 from typing import Iterable, Optional
+
+import numpy as np
 import torch
-from timm.utils import accuracy, ModelEma
-import utils
-from scipy.special import softmax
-from einops import rearrange
-from torch.utils.data._utils.collate import default_collate
 import torch.nn.functional as F
+import utils
+from einops import rearrange
+from scipy.special import softmax
+from timm.utils import ModelEma, accuracy
+from torch.utils.data._utils.collate import default_collate
 
 
 def train_class_batch(model, samples, target, criterion):
@@ -160,7 +161,7 @@ def validation_one_epoch(data_loader, model, device):
 
         # compute output
         with torch.cuda.amp.autocast():
-            output = model(videos)
+            output = model(videos.half())
             loss = criterion(output, target)
 
         acc1, acc5 = accuracy(output, target, topk=(1, 5))
