@@ -171,21 +171,22 @@ class VideoClsDataset(Dataset):
         buffer,
         args,
     ):
+        if args.aa != "":
+            aug_transform = video_transforms.create_random_augment(
+                input_size=(self.crop_size, self.crop_size),
+                auto_augment=args.aa,
+                interpolation=args.train_interpolation,
+            )
 
-        aug_transform = video_transforms.create_random_augment(
-            input_size=(self.crop_size, self.crop_size),
-            auto_augment=args.aa,
-            interpolation=args.train_interpolation,
-        )
+            buffer = [
+                transforms.ToPILImage()(frame) for frame in buffer
+            ]
 
-        buffer = [
-            transforms.ToPILImage()(frame) for frame in buffer
-        ]
-
-        buffer = aug_transform(buffer)
+            buffer = aug_transform(buffer)
 
         buffer = [transforms.ToTensor()(img) for img in buffer]
         buffer = torch.stack(buffer) # T C H W
+
         buffer = buffer.permute(0, 2, 3, 1) # T H W C 
         
         # T H W C 
@@ -195,18 +196,22 @@ class VideoClsDataset(Dataset):
         # T H W C -> C T H W.
         buffer = buffer.permute(3, 0, 1, 2)
         # Perform data augmentation.
+        # scl, asp = (
+        #     [0.08, 1.0],
+        #     [0.75, 1.3333],
+        # )
         scl, asp = (
-            [0.08, 1.0],
-            [0.75, 1.3333],
+            [0.99, 1.0],
+            [0.99, 1.0],
         )
 
         buffer = spatial_sampling(
             buffer,
             spatial_idx=-1,
-            min_scale=256,
+            min_scale=256,  # NOTE: *_scale do nothing because spatial_idx == -1 and aspect_ratio is not None and scale is not None.
             max_scale=320,
             crop_size=self.crop_size,
-            random_horizontal_flip=False if args.data_set == 'SSV2' else True,
+            random_horizontal_flip=False if args.data_set in ('SSV2', 'CAML') else True,
             inverse_uniform_sampling=False,
             aspect_ratio=asp,
             scale=scl,
@@ -418,6 +423,8 @@ class VideoDistillation(torch.utils.data.Dataset):
     new_step : int, default 1.
         Temporal sampling rate. For example, new_step=1 means we will extract a video clip of consecutive frames.
         new_step=2 means we will extract a video clip of every other frame.
+    num_sample: int, default 1.
+        Number of video clips and corresponding masks to return from a call to __getitem__()
     temporal_jitter : bool, default False.
         Whether to temporally jitter if new_step > 1.
     video_loader : bool, default False.
