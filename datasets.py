@@ -31,7 +31,11 @@ class DataAugmentationForVideoDistillation(object):
             )
 
     def __call__(self, images):
+        print(f"{images[0][0].size=}")
+        # images[0][0].save("pre_aug.png")
         process_data_0, process_data_1, labels = self.train_augmentation(images)
+        # print(f"{process_data_0[0].size=}")
+        # process_data_0[0].save("post_aug.png")
         process_data_0, _ = self.transform((process_data_0, labels))
         process_data_1, _ = self.transform((process_data_1, labels))
         return process_data_0, process_data_1, self.masked_position_generator()
@@ -131,6 +135,7 @@ def build_dataset(is_train, test_mode, args):
             short_side_size=args.short_side_size,
             new_height=256,
             new_width=320,
+            alarm_frame_offset=args.alarm_frame_offset,
             args=args,
         )
         nb_classes = 3

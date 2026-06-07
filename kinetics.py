@@ -24,7 +24,7 @@ class VideoClsDataset(Dataset):
     def __init__(self, anno_path, data_path, mode='train', clip_len=8,
                  frame_sample_rate=2, crop_size=224, short_side_size=256,
                  new_height=256, new_width=340, keep_aspect_ratio=True,
-                 num_segment=1, num_crop=1, test_num_segment=10, test_num_crop=3, args=None):
+                 num_segment=1, num_crop=1, test_num_segment=10, test_num_crop=3, alarm_frame_offset=900, args=None):
         self.anno_path = anno_path
         self.data_path = data_path
         self.mode = mode
@@ -42,6 +42,7 @@ class VideoClsDataset(Dataset):
         self.args = args
         self.aug = False
         self.rand_erase = False
+        self.alarm_frame_offset = alarm_frame_offset  # See VideoDistillation docstring for explanation -- only relevant to CAML
 
         if self.mode in ['train']:
             self.aug = True
@@ -56,6 +57,9 @@ class VideoClsDataset(Dataset):
         if self.data_path is not None:
             self.dataset_samples = [os.path.join(self.data_path, p) for p in self.dataset_samples]
         self.label_array = list(cleaned.values[:, 1])
+        self.alarm_frame_indices = None
+        if args.data_set == "CAML":
+            self.alarm_frame_indices = list(cleaned.values[:, 2])
 
         if (mode == 'train'):
             pass
@@ -88,20 +92,45 @@ class VideoClsDataset(Dataset):
                         self.test_dataset.append(self.dataset_samples[idx])
                         self.test_seg.append((ck, cp))
 
+        if self.args.data_set == "CAML":
+            indices_to_remove = []
+            for i, sample in enumerate(self.dataset_samples):
+                if (self.alarm_frame_indices[i] - self.alarm_frame_offset) <= 0:
+                    logger.info(
+                        f"{sample} has alarm at frame index "
+                        f"{self.alarm_frame_indices[i]}, which is too early given that "
+                        f"we start prediction {self.alarm_frame_offset} frames before "
+                        f"the alarm. Omitting sample from {mode}."
+                    )
+                    indices_to_remove.append(i)
+            
+            # Iter through indices to remove in descending order to avoid idx shifting.
+            for i in sorted(indices_to_remove, reverse=True):
+                del self.dataset_samples[i]
+                del self.label_array[i]
+                del self.alarm_frame_indices[i]
+
+
     def __getitem__(self, index):
+
+        cutoff_idx = None
+        if self.alarm_frame_indices is not None:
+            alarm_frame_idx = self.alarm_frame_indices[index]
+            cutoff_idx = alarm_frame_idx - self.alarm_frame_offset
 
         if self.mode == 'train':
             args = self.args 
             scale_t = 1
 
             sample = self.dataset_samples[index]
-            buffer = self.loadvideo_decord(sample, sample_rate_scale=scale_t) # T H W C
+            
+            buffer = self.loadvideo_decord(sample, cutoff_idx, sample_rate_scale=scale_t) # T H W C
             if len(buffer) == 0:
                 while len(buffer) == 0:
                     warnings.warn("video {} not correctly loaded during training".format(sample))
                     index = np.random.randint(self.__len__())
                     sample = self.dataset_samples[index]
-                    buffer = self.loadvideo_decord(sample, sample_rate_scale=scale_t)
+                    buffer = self.loadvideo_decord(sample, cutoff_idx, sample_rate_scale=scale_t)
 
             if args.num_sample > 1:
                 frame_list = []
@@ -120,20 +149,20 @@ class VideoClsDataset(Dataset):
 
         elif self.mode == 'validation':
             sample = self.dataset_samples[index]
-            buffer = self.loadvideo_decord(sample)
+            buffer = self.loadvideo_decord(sample, cutoff_idx)
             if len(buffer) == 0:
                 while len(buffer) == 0:
                     warnings.warn("video {} not correctly loaded during validation".format(sample))
                     index = np.random.randint(self.__len__())
                     sample = self.dataset_samples[index]
-                    buffer = self.loadvideo_decord(sample)
+                    buffer = self.loadvideo_decord(sample, cutoff_idx)
             buffer = self.data_transform(buffer)
             return buffer, self.label_array[index], sample.split("/")[-1].split(".")[0]
 
         elif self.mode == 'test':
             sample = self.test_dataset[index]
             chunk_nb, split_nb = self.test_seg[index]
-            buffer = self.loadvideo_decord(sample)
+            buffer = self.loadvideo_decord(sample, cutoff_idx)
 
             while len(buffer) == 0:
                 warnings.warn("video {}, temporal {}, spatial {} not found during testing".format(\
@@ -141,7 +170,7 @@ class VideoClsDataset(Dataset):
                 index = np.random.randint(self.__len__())
                 sample = self.test_dataset[index]
                 chunk_nb, split_nb = self.test_seg[index]
-                buffer = self.loadvideo_decord(sample)
+                buffer = self.loadvideo_decord(sample, cutoff_idx)
 
             buffer = self.data_resize(buffer)
             if isinstance(buffer, list):
@@ -190,6 +219,7 @@ class VideoClsDataset(Dataset):
         buffer = buffer.permute(0, 2, 3, 1) # T H W C 
         
         # T H W C 
+        # NOTE: These norm values are the same imagenet defaults used in datasets.py::DataAugmentationForVideoDistillation
         buffer = tensor_normalize(
             buffer, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
         )
@@ -233,7 +263,7 @@ class VideoClsDataset(Dataset):
         return buffer
 
 
-    def loadvideo_decord(self, sample, sample_rate_scale=1):
+    def loadvideo_decord(self, sample, cutoff_idx, sample_rate_scale=1):
         """Load video content using Decord"""
         fname = sample
 
@@ -264,14 +294,24 @@ class VideoClsDataset(Dataset):
 
         # handle temporal segments
         converted_len = int(self.clip_len * self.frame_sample_rate)
-        seg_len = len(vr) // self.num_segment
+
+        vid_len = len(vr)
+        if cutoff_idx is not None:
+            assert vid_len >= cutoff_idx, f"{vid_len=} is less than the {cutoff_idx=}. The latter must have been computed in error or else associated with the wrong video."
+            vid_len = cutoff_idx
+
+        seg_len = vid_len // self.num_segment
 
         all_index = []
         for i in range(self.num_segment):
             if seg_len <= converted_len:
+                # Get frame indices spaced every self.frame_sample_rate from 0 to the number of frames in this segment.
                 index = np.linspace(0, seg_len, num=seg_len // self.frame_sample_rate)
+                # Since there are not enough frames in this segment, concat the idx of the last frame of the segment on as many times as needed to fill out clip_len.
                 index = np.concatenate((index, np.ones(self.clip_len - seg_len // self.frame_sample_rate) * seg_len))
+                # Make sure no index values exceed the length of the segment.
                 index = np.clip(index, 0, seg_len - 1).astype(np.int64)
+                # NOTE: index is re-instantiated every loop for this if block, which makes all segments are identical.
             else:
                 end_idx = np.random.randint(converted_len, seg_len)
                 str_idx = end_idx - converted_len
