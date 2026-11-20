@@ -595,9 +595,8 @@ class VideoDistillation(torch.utils.data.Dataset):
             for line in data:
                 total_num_vids += 1
                 line_info = line.split(self.csv_sep)
-                # line format: video_path, video_duration, video_label  TODO was this supposed to have a duration?
-                # line format: video_path, video_label, frame that the alarm first appears
-                if len(line_info) != 3:
+                # line format: video_path, video_label, frame that the alarm first appears, (optional) last frame that alarm is present
+                if len(line_info) not in [3, 4]:
                     raise(RuntimeError('Video input format is not correct, splitting by `%s` yielded %d elements rather than the expected 3. Line: %s' % (self.csv_sep, len(line_info), line)))
                 clip_path = os.path.join(line_info[0])
                 target = int(line_info[1])
